@@ -1,0 +1,41 @@
+{% import '@XutimCore/admin/common/badges.html.twig' as badges %}
+{% import '@XutimCore/admin/common/translatable.html.twig' as translatable %}
+{%
+    set translation = page.translationByLocaleOrDefault(content_context_language())
+%}
+
+<div>
+    <turbo-frame id="article-preview-frame">
+        {% if translation.content.blocks|length == 0 %}
+            {{ 'The page has no content.'|trans({}, 'admin') }}
+        {% else %}
+            <div
+                data-controller="article-preview"
+                class="border-0 position-relative"
+            >
+                <iframe
+                    src="{{ path('admin_page_frame_show', {id: page.id}) }}"
+                    sandbox="allow-scripts allow-same-origin"
+                    class="w-100 bg-white"
+                    data-article-preview-target="frame"
+                    style="border: none"
+                >
+                </iframe>
+                <twig:Xutim:Admin:PreviewSizesButtons />
+            </div>
+            {#
+                    <div
+                        data-controller="article-preview"
+                        data-article-preview-url-value="{{ path('admin_page_frame_show', {id: page.id}) }}"
+                    >
+                        <div
+                            id="preview-container"
+                            data-article-preview-target="preview"
+                        >
+                            <twig:Xutim:Admin:Placeholder />
+                        </div>
+                    </div>
+                    #}
+        {% endif %}
+    </turbo-frame>
+</div>

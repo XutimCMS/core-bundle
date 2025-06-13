@@ -1,0 +1,99 @@
+{% import '@XutimCore/admin/common/translatable.html.twig' as translatable %}
+
+<div class="mb-3">
+    {% if not translation %}
+        <twig:Xutim:Admin:SidebarSection>
+            <twig:Xutim:Admin:SidebarItem>
+                <twig:block name="content">
+                    {{
+                        '%locale% translation doesn\'t exist yet.'|trans({'%locale%': content_context_language()|language_name}, 'admin')
+                    }}
+                </twig:block>
+            </twig:Xutim:Admin:SidebarItem>
+            <twig:Xutim:Admin:SidebarItem>
+                <twig:block name="content">
+                    <twig:Xutim:Admin:Button
+                        variant="primary"
+                        href="{{ path('admin_page_edit', {id: page.id}) }}"
+                        tag="a"
+                    >
+                        {{ 'Add the translation'|trans({}, 'admin') }}
+                    </twig:Xutim:Admin:Button>
+                </twig:block>
+            </twig:Xutim:Admin:SidebarItem>
+        </twig:Xutim:Admin:SidebarSection>
+    {% endif %}
+    {% if translation %}
+        <twig:Xutim:Admin:SidebarSection>
+            {%
+                include "@XutimCore/admin/page/_publication_status_sidebar_item.html.twig"
+            %}
+
+            {%
+                if translation is defined and translation is not same as(null) and translation.untranslatedChange()
+            %}
+                <twig:Xutim:Admin:SidebarItem>
+                    <a
+                        href="{{ path('admin_content_translation_revisions', {id: translation.id}) }}"
+                        class="fw-bold"
+                    >
+                        {{
+                            'New changes in reference translation'|trans({}, 'admin')
+                        }}
+                    </a>
+                </twig:Xutim:Admin:SidebarItem>
+            {% endif %}
+
+            {{
+                include('@XutimCore/admin/page/_parent_sidebar_item.html.twig')
+            }}
+            {{ include('@XutimCore/admin/page/_color_sidebar_item.html.twig') }}
+            {{
+                include('@XutimCore/admin/page/_layout_sidebar_item.html.twig')
+            }}
+            {{
+                include('@XutimCore/admin/page/_featured_image_sidebar_item.html.twig')
+            }}
+
+            <twig:Xutim:Admin:SidebarItem>
+                <twig:block name="header">
+                    {{ 'author'|trans({}, 'admin')|capitalize }}:
+                </twig:block>
+                <twig:block name="content">
+                    {% if lastRevision %}
+                        {{ lastRevision.userIdentifier }}
+                    {% else %}
+                        {{ 'unknown'|trans({}, 'admin') }}
+                    {% endif %}
+                </twig:block>
+            </twig:Xutim:Admin:SidebarItem>
+
+            <twig:Xutim:Admin:SidebarItem>
+                <twig:block name="header">
+                    {{ 'revisions'|trans({}, 'admin')|capitalize }}:
+                </twig:block>
+                <twig:block name="content">
+                    <a
+                        href="{{ path('admin_content_translation_revisions', {id: translation.id}) }}"
+                    >
+                        {{ revisionsCount }}
+                    </a>
+                </twig:block>
+            </twig:Xutim:Admin:SidebarItem>
+
+            <twig:Xutim:Admin:SidebarItem>
+                <twig:block name="content">
+                    <twig:Xutim:Admin:ModalDialog
+                        class="btn btn-outline-danger"
+                        modalDialogColor="danger"
+                        action="{{ path('admin_content_translation_delete', {id: translation.id}) }}"
+                        confirmActionLabel="{{ 'delete'|trans({}, 'admin')|capitalize }}"
+                    >
+                        <twig:Xutim:Admin:Icon name="trash" />
+                        Delete
+                    </twig:Xutim:Admin:ModalDialog>
+                </twig:block>
+            </twig:Xutim:Admin:SidebarItem>
+        </twig:Xutim:Admin:SidebarSection>
+    {% endif %}
+</div>

@@ -1,0 +1,58 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Xutim\CoreBundle\Action\Admin\Article;
+
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Routing\Attribute\Route;
+use Xutim\CoreBundle\Entity\ContentTranslation;
+use Xutim\CoreBundle\Entity\User;
+use Xutim\CoreBundle\Form\Admin\ArticleType;
+use Xutim\CoreBundle\Form\Admin\Dto\CreateArticleFormData;
+use Xutim\CoreBundle\Message\Command\Article\CreateArticleCommand;
+use Xutim\CoreBundle\Repository\ContentTranslationRepository;
+use Xutim\CoreBundle\Security\UserStorage;
+
+#[Route('/article/new', name: 'admin_article_new', methods: ['get', 'post'])]
+class CreateArticleAction extends AbstractController
+{
+    public function __construct(
+        private readonly MessageBusInterface $commandBus,
+        private readonly UserStorage $userStorage,
+        private readonly ContentTranslationRepository $contentTransRepo
+    ) {
+    }
+
+    public function __invoke(Request $request): Response
+    {
+        $this->denyAccessUnlessGranted(User::ROLE_EDITOR);
+        $form = $this->createForm(ArticleType::class);
+
+        $form->get('content')->setData('[]');
+
+        $form->handleRequest($request);
+        if ($form->isSubmitted() && $form->isValid()) {
+            /** @var CreateArticleFormData $data */
+            $data = $form->getData();
+
+            $this->commandBus->dispatch(CreateArticleCommand::fromFormData(
+                $data,
+                $this->userStorage->getUserWithException()->getUserIdentifier()
+            ));
+
+            /** @var ContentTranslation $trans */
+            $trans = $this->contentTransRepo->findOneBy(['slug' => $data->getSlug(), 'locale' => $data->getLocale()]);
+            $article = $trans->getArticle();
+
+            return $this->redirectToRoute('admin_article_show', ['id' => $article->getId()]);
+        }
+
+        return $this->render('@XutimCore/admin/article/article_new.html.twig', [
+            'form' => $form
+        ]);
+    }
+}
