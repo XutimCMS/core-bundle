@@ -96,6 +96,7 @@ export default class extends Controller {
                     config: {
                         listUrl: this.fetchAllFilesUrlValue,
                         title: 'Select a file',
+                        type: 'file',
                     },
                     shortcut: 'CMD+SHIFT+H',
                 },
