@@ -290,15 +290,15 @@ export default class extends Controller {
     #updateReferenceMeta(meta = {}) {
         const get = (k) => meta[k] ?? '';
         if (this.hasMetaPretitleTarget)
-            this.metaPretitleTarget.textContent = get('pretitle');
+            this.metaPretitleTarget.value = get('pretitle');
         if (this.hasMetaSlugTarget)
-            this.metaSlugTarget.textContent = get('slug');
+            this.metaSlugTarget.value = get('slug');
         if (this.hasMetaTitleTarget)
-            this.metaTitleTarget.textContent = get('title');
+            this.metaTitleTarget.value = get('title');
         if (this.hasMetaSubtitleTarget)
-            this.metaSubtitleTarget.textContent = get('subtitle');
+            this.metaSubtitleTarget.value = get('subtitle');
         if (this.hasMetaDescriptionTarget) {
-            this.metaDescriptionTarget.textContent = this.#asPlain(
+            this.metaDescriptionTarget.value = this.#asPlain(
                 get('description'),
             );
         }
@@ -430,11 +430,15 @@ export default class extends Controller {
     #applyScrollLock() {
         if (!this.hasRightTarget) return;
         if (this.scrollLocked) {
-            this.rightTarget.style.overflow = 'hidden';
-            this.rightTarget.style.position = 'static';
-        } else {
-            this.rightTarget.style.overflow = '';
             this.rightTarget.style.position = '';
+            this.rightTarget.style.top = '';
+            this.rightTarget.style.maxHeight = '';
+            this.rightTarget.style.overflowY = '';
+        } else {
+            this.rightTarget.style.position = 'sticky';
+            this.rightTarget.style.top = '0';
+            this.rightTarget.style.maxHeight = '100vh';
+            this.rightTarget.style.overflowY = 'auto';
         }
     }
 
