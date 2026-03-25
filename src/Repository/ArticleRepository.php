@@ -438,7 +438,7 @@ class ArticleRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('article');
         $qb
-            ->select('article', 'translation')
+            ->select('article')
             ->join(
                 'article.translations',
                 'translation',
@@ -448,6 +448,7 @@ class ArticleRepository extends ServiceEntityRepository
             ->leftJoin('article.defaultTranslation', 'defaultTranslation')
             ->leftJoin('article.translations', 'refTranslation', 'WITH', 'refTranslation.locale = :refLocale')
             ->where($qb->expr()->in('translation.locale', ':locales'))
+            ->andWhere('translation.locale != :refLocale')
             ->andWhere(<<<DQL
                 translation.referenceSyncedAt IS NULL
                 OR translation.referenceSyncedAt < CASE
@@ -512,7 +513,22 @@ class ArticleRepository extends ServiceEntityRepository
         $qb->andWhere($qb->expr()->orX(...$localeConditions));
 
         /** @var list<ArticleInterface> */
-        return $qb->getQuery()->getResult();
+        $articles = $qb->getQuery()->getResult();
+
+        return array_values(array_filter($articles, static function ($article) use ($locales): bool {
+            $existingLocales = array_map(
+                fn ($t) => $t->getLocale(),
+                $article->getTranslations()->toArray()
+            );
+
+            foreach ($locales as $locale) {
+                if (!in_array($locale, $existingLocales, true) && $article->isLocaleAllowed($locale)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }));
     }
 
     /**
