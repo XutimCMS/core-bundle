@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Xutim\CoreBundle\Dashboard;
 
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
-use Xutim\CoreBundle\Repository\TagRepository;
+use Xutim\CoreBundle\Repository\PageRepository;
 use Xutim\CoreBundle\Routing\AdminUrlGenerator;
 
-#[AutoconfigureTag('xutim.translation_stat_provider', ['priority' => 30])]
-final readonly class TagTranslationStatProvider implements TranslationStatProvider
+#[AutoconfigureTag('xutim.translation_stat_provider', ['priority' => 50])]
+final readonly class PageTranslationStatProvider implements TranslationStatProvider
 {
     public function __construct(
-        private TagRepository $tagRepository,
+        private PageRepository $pageRepository,
         private AdminUrlGenerator $router,
     ) {
     }
@@ -25,11 +25,11 @@ final readonly class TagTranslationStatProvider implements TranslationStatProvid
         ));
 
         return new TranslationStat(
-            label: 'tags',
-            icon: 'tabler:tag',
-            untranslatedCount: $this->tagRepository->countUntranslatedForLocales($localesWithoutReference),
+            label: 'pages',
+            icon: 'tabler:file-text',
+            untranslatedCount: $this->pageRepository->countUntranslatedForLocales($localesWithoutReference),
             outdatedCount: 0,
-            listUrl: $this->router->generate('admin_tag_list'),
+            listUrl: $this->router->generate('admin_page_list'),
         );
     }
 }

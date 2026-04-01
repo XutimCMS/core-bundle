@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Xutim\CoreBundle\Dashboard;
 
+use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 use Xutim\CoreBundle\Context\SiteContext;
 use Xutim\CoreBundle\Repository\ArticleRepository;
 use Xutim\CoreBundle\Routing\AdminUrlGenerator;
 
+#[AutoconfigureTag('xutim.translation_stat_provider', ['priority' => 40])]
 final readonly class ArticleTranslationStatProvider implements TranslationStatProvider
 {
     public function __construct(
@@ -26,7 +28,7 @@ final readonly class ArticleTranslationStatProvider implements TranslationStatPr
             icon: 'tabler:article',
             untranslatedCount: count($this->articleRepository->findByMissingTranslations($locales, ageLimitDays: $ageLimitDays)),
             outdatedCount: count($this->articleRepository->findByChangedDefaultTranslations($locales)),
-            listUrl: $this->router->generate('admin_article_list', ['translationStatus' => 'missing']),
+            listUrl: $this->router->generate('admin_article_list', ['col' => ['translationStatus' => 'missing']]),
         );
     }
 }
