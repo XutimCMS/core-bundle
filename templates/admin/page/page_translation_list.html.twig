@@ -1,15 +1,15 @@
 {% extends '@XutimCore/admin/base.html.twig' %}
 
-{% block pageTitle %}{{ 'tags'|trans({}, 'admin')|capitalize }}{% endblock %}
+{% block pageTitle %}{{ 'pages'|trans({}, 'admin')|capitalize }}{% endblock %}
 
 {% block pageMenu %}
     <twig:Xutim:Admin:Button
         tag="a"
         variant="nav"
-        href="{{ admin_path('admin_tag_new') }}"
+        href="{{ admin_path('admin_page_list') }}"
     >
-        <twig:Xutim:Admin:Icon name="tag" class="me-1" />
-        {{ 'New tag'|trans({}, 'admin') }}
+        <twig:ux:icon name="tabler:binary-tree" class="icon" />
+        {{ 'Page tree'|trans({}, 'admin') }}
     </twig:Xutim:Admin:Button>
 {% endblock %}
 
@@ -21,15 +21,16 @@
 
 {% block breadcrumbHeader %}
     <twig:Xutim:Admin:Breadcrumbs>
-        <li class="breadcrumb-item">Tags</li>
+        <li class="breadcrumb-item">Pages</li>
     </twig:Xutim:Admin:Breadcrumbs>
 {% endblock %}
 
 {% block body %}
     {%
         component 'Xutim:Admin:DataTable' with {
-            frameId: 'tags-list',
-            pager: tags,
+            frameId: 'pages-translation-list',
+            pager: pages,
+            tableBodyId: 'pages-translation-list-body',
             filter: filter,
             showChips: true,
             columns: [
@@ -43,6 +44,7 @@
                   options: [
                     {label: 'Draft'|trans({}, 'admin'), value: 'draft'},
                     {label: 'Published'|trans({}, 'admin'), value: 'published'},
+                    {label: 'Scheduled'|trans({}, 'admin'), value: 'scheduled'},
                   ],
                   placeholder: 'Any'|trans({}, 'admin'),
                   minWidth: '180px',
@@ -67,27 +69,17 @@
                 },
               },
               {
-                key: 'name',
-                label: 'Name'|trans({}, 'admin'),
+                key: 'title',
+                label: 'title'|trans({}, 'admin'),
                 sortable: true,
-                order: 'name',
+                order: 'title',
                 filter: {type: 'text'},
                 chip: true,
               },
               {
-                key: 'excludeFromNews',
-                label: 'In news'|trans({}, 'admin'),
+                key: 'parent',
+                label: 'Parent'|trans({}, 'admin'),
                 sortable: false,
-                filter: {
-                  type: 'select',
-                  options: [
-                    {label: 'yes'|trans({}, 'admin'), value: 'false'},
-                    {label: 'no'|trans({}, 'admin'), value: 'true'},
-                  ],
-                  placeholder: 'Any'|trans({}, 'admin'),
-                  minWidth: '180px',
-                },
-                chip: true,
               },
               {
                 key: 'updatedAt',
@@ -105,22 +97,21 @@
                   placeholder: 'Any'|trans({}, 'admin'),
                   minWidth: '200px',
                 },
-                chip: true,
+                chip: {fallbackLabel: 'Last %value% days'|trans({}, 'admin')},
               },
-          ],
+            ],
         }
     %}
     {% block body %}
         {% import '@XutimCore/admin/common/badges.html.twig' as badges %}
-        {% for tag in tags %}
-            {% set tagColor = tag.color %}
+        {% for page in pages %}
             {%
-                set translation = tag.translationByLocaleOrFallback(content_context_language(), default_locale)
+                set translation = page.translationByLocaleOrFallback(content_context_language(), default_locale)
             %}
             <tr>
                 <td>
                     {% if translation.locale == content_context_language() %}
-                        {{ badges.publicationStatusBadgeSimple(tag) }}
+                        {{ badges.publicationStatusBadge(translation) }}
                     {% else %}
                         {{ badges.missingBadge() }}
                     {% endif %}
@@ -140,24 +131,25 @@
                     <twig:Xutim:Admin:Button
                         tag="a"
                         variant="link"
+                        href="{{ admin_path('admin_page_list', {id: page.id}) }}"
                         data-turbo-frame="_top"
+                        class="mt-1"
                         aria-label="{{ 'show'|trans({}, 'admin') }}"
-                        href="{{ admin_path('admin_tag_edit', {id: tag.id}) }}"
                     >
-                        <twig:Xutim:Admin:Tag :color="tagColor">
-                            {{ translation.name }}
-                        </twig:Xutim:Admin:Tag>
+                        {%
+                            import '@XutimCore/admin/common/translatable.html.twig' as translatable
+                        %}
+
+                        {{
+                            translatable.titleWithBadge(page, default_locale)
+                        }}
                     </twig:Xutim:Admin:Button>
                 </td>
-                <td>
-                    {% if tag.excludeFromNews %}
-                        <span class="status status-danger">
-                            {{ 'no'|trans({}, 'admin') }}
-                        </span>
+                <td class="text-wrap text-secondary small">
+                    {% if page.parent %}
+                        {{ page.parent.translationByLocaleOrDefault(content_context_language()).title }}
                     {% else %}
-                        <span class="status status-green">
-                            {{ 'yes'|trans({}, 'admin') }}
-                        </span>
+                        -
                     {% endif %}
                 </td>
                 <td>
