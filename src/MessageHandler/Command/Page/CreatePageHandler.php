@@ -40,7 +40,8 @@ readonly class CreatePageHandler implements CommandHandlerInterface
 
         $parentPage = $cmd->parentId !== null ? $this->pageRepository->find($cmd->parentId) : null;
         $page = $this->pageFactory->create($cmd, $file, $parentPage);
-        $translation = $page->getDefaultTranslation();
+        $translation = $page->getTranslationByLocale($cmd->defaultLanguage);
+        assert($translation !== null);
 
         $searchContent = $this->searchContentBuilder->build($translation);
         $searchTagContent = $this->searchContentBuilder->buildTagContent($translation);
@@ -53,7 +54,6 @@ readonly class CreatePageHandler implements CommandHandlerInterface
         $pageCreatedEvent = new PageCreatedEvent(
             $page->getId(),
             $cmd->locales,
-            $translation->getId(),
             $page->getCreatedAt(),
             $cmd->parentId,
             $cmd->layout,

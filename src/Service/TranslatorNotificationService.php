@@ -7,6 +7,7 @@ namespace Xutim\CoreBundle\Service;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Xutim\CoreBundle\Domain\Model\ArticleInterface;
+use Xutim\CoreBundle\Domain\Model\ContentTranslationInterface;
 use Xutim\CoreBundle\Domain\Model\PageInterface;
 use Xutim\NotificationBundle\Domain\Factory\NotificationFactory;
 use Xutim\NotificationBundle\Entity\NotificationSeverity;
@@ -22,6 +23,7 @@ final readonly class TranslatorNotificationService
         private MessageBusInterface $commandBus,
         private UrlGeneratorInterface $urlGenerator,
         private NotificationFactory $notificationFactory,
+        private ReferenceTranslationResolver $referenceTranslationResolver,
     ) {
     }
 
@@ -44,7 +46,9 @@ final readonly class TranslatorNotificationService
 
         $recipients = $this->recipientResolver->resolveForLocales($locales, $actorIdentifier);
         $contentType = $content instanceof ArticleInterface ? 'article' : 'page';
-        $contentTitle = $content->getDefaultTranslation()->getTitle();
+        /** @var ContentTranslationInterface $reference */
+        $reference = $this->referenceTranslationResolver->resolve($content);
+        $contentTitle = $reference->getTitle();
         $actionRoute = $this->buildContentRouteData($content);
 
         foreach ($recipients as $recipient) {

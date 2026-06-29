@@ -8,10 +8,12 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Xutim\CoreBundle\Context\SiteContext;
+use Xutim\CoreBundle\Domain\Model\ContentTranslationInterface;
 use Xutim\NotificationBundle\Dto\Admin\Notification\NotificationAlertDto;
 use Xutim\NotificationBundle\Form\Admin\NotificationAlertType;
 use Xutim\CoreBundle\Repository\PageRepository;
 use Xutim\CoreBundle\Routing\AdminUrlGenerator;
+use Xutim\CoreBundle\Service\ReferenceTranslationResolver;
 use Xutim\CoreBundle\Service\TranslatorNotificationService;
 use Xutim\SecurityBundle\Security\UserRoles;
 use Xutim\SecurityBundle\Service\UserStorage;
@@ -24,6 +26,7 @@ final class NotifyPageTranslatorsAction extends AbstractController
         private readonly UserStorage $userStorage,
         private readonly AdminUrlGenerator $router,
         private readonly SiteContext $siteContext,
+        private readonly ReferenceTranslationResolver $referenceTranslationResolver,
     ) {
     }
 
@@ -43,9 +46,12 @@ final class NotifyPageTranslatorsAction extends AbstractController
         $mainLocales = array_values(array_intersect($this->siteContext->getLocales(), $allowedLocales));
         $extendedLocales = array_values(array_intersect($this->siteContext->getExtendedContentLocales(), $allowedLocales));
 
+        /** @var ContentTranslationInterface $reference */
+        $reference = $this->referenceTranslationResolver->resolve($page);
+        $referenceTitle = $reference->getTitle();
         $form = $this->createForm(NotificationAlertType::class, new NotificationAlertDto(
             locales: $mainLocales,
-            title: sprintf('Translation needed: %s', $page->getDefaultTranslation()->getTitle()),
+            title: sprintf('Translation needed: %s', $referenceTitle),
         ), [
             'main_locales' => $mainLocales,
             'extended_locales' => $extendedLocales,

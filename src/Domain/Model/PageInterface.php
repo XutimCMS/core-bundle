@@ -11,7 +11,10 @@ use Xutim\CoreBundle\Config\Layout\Layout;
 use Xutim\CoreBundle\Entity\Color;
 use Xutim\MediaBundle\Domain\Model\MediaInterface;
 
-interface PageInterface extends TranslationLocaleAwareInterface
+/**
+ * @extends TranslatableInterface<ContentTranslationInterface>
+ */
+interface PageInterface extends TranslationLocaleAwareInterface, TranslatableInterface
 {
     /**
      * @param list<string> $locales
@@ -22,16 +25,9 @@ interface PageInterface extends TranslationLocaleAwareInterface
 
     public function changeParent(?PageInterface $parent): void;
 
-    public function setDefaultTranslation(ContentTranslationInterface $trans): void;
-
     public function getId(): Uuid;
 
     public function getColor(): Color;
-
-    /**
-     * @return ContentTranslationInterface
-     */
-    public function getTranslationByLocaleOrDefault(string $locale);
 
     /**
      * @return ?ContentTranslationInterface
@@ -52,8 +48,6 @@ interface PageInterface extends TranslationLocaleAwareInterface
      * @return array<string, string>
      */
     public function getExistingTranslationLocales(): array;
-
-    public function getDefaultTranslation(): ContentTranslationInterface;
 
     public function getRootPage(): PageInterface;
 
@@ -116,5 +110,5 @@ interface PageInterface extends TranslationLocaleAwareInterface
     /**
      * @return ContentTranslationInterface
     */
-    public function getTranslationByLocaleOrAny(string $locale);
+    public function getTranslationByLocaleOrAny(string $locale, ?string $altLocale = null);
 }

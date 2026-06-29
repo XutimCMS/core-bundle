@@ -14,6 +14,7 @@ use Xutim\CoreBundle\Domain\Model\ContentTranslationInterface;
 use Xutim\CoreBundle\Domain\Model\PageInterface;
 use Xutim\CoreBundle\Dto\Admin\FilterDto;
 use Xutim\CoreBundle\Entity\PublicationStatus;
+use Xutim\CoreBundle\Service\ReferenceTranslationResolver;
 
 /**
  * @extends  ServiceEntityRepository<PageInterface>
@@ -33,6 +34,7 @@ class PageRepository extends ServiceEntityRepository
         private readonly string $contentTranslationEntityClass,
         private readonly ContentContext $contentContext,
         private readonly SiteContext $siteContext,
+        private readonly ReferenceTranslationResolver $referenceTranslationResolver,
     ) {
         parent::__construct($registry, $entityClass);
     }
@@ -45,12 +47,11 @@ class PageRepository extends ServiceEntityRepository
      */
     public function hierarchyByPublished(string $locale, bool $archived = false, bool $onlyTranslated = false): array
     {
+        $refLocale = $this->siteContext->getReferenceLocale();
         $builder = $this->createQueryBuilder('node');
         $builder
             ->leftJoin('node.parent', 'parent')
             ->addSelect('parent')
-            ->leftJoin('node.defaultTranslation', 'transDef')
-            ->addSelect('transDef')
             ->addOrderBy('parent.id', 'ASC')
             ->addOrderBy('node.position', 'ASC')
             ->addOrderBy('node.createdAt', 'ASC')
@@ -58,9 +59,7 @@ class PageRepository extends ServiceEntityRepository
 
         if ($onlyTranslated === true) {
             $builder
-                ->leftJoin('node.translations', 'transLoc')
-                ->andWhere('transLoc.locale = :locale')
-                ->addSelect('transLoc')
+                ->innerJoin('node.translations', 'transLoc', 'WITH', 'transLoc.locale = :locale')
                 ->setParameter('locale', $locale, Types::STRING);
         }
 
@@ -72,20 +71,18 @@ class PageRepository extends ServiceEntityRepository
         /** @var array<PageInterface> */
         $pages = $builder->getQuery()->getResult();
 
-        // Pre-fetch translations for the pages.
-        if ($onlyTranslated === false) {
-            if ($pages !== []) {
-                $this->getEntityManager()
-                    ->createQuery(<<<DQL
-                        SELECT t, p
-                        FROM {$this->contentTranslationEntityClass} t
-                        JOIN t.page p
-                        WHERE p IN (:pages) AND t.locale = :locale
-                    DQL)
-                    ->setParameter('pages', $pages)
-                    ->setParameter('locale', $locale)
-                    ->getResult();
-            }
+        // Pre-fetch the user-locale and reference-locale translations into the page collections.
+        if ($pages !== []) {
+            $this->getEntityManager()
+                ->createQuery(<<<DQL
+                    SELECT t, p
+                    FROM {$this->contentTranslationEntityClass} t
+                    JOIN t.page p
+                    WHERE p IN (:pages) AND t.locale IN (:locales)
+                DQL)
+                ->setParameter('pages', $pages)
+                ->setParameter('locales', array_unique([$locale, $refLocale]))
+                ->getResult();
         }
 
 
@@ -98,8 +95,7 @@ class PageRepository extends ServiceEntityRepository
                 $rootPagesIds[] = $pageId;
             }
 
-            $localeTranslation = $page->getTranslations()->get($locale);
-            $trans = $localeTranslation ?? $page->getDefaultTranslation();
+            $trans = $page->getTranslationByLocaleOrAny($locale, $this->siteContext->getReferenceLocale());
 
             $pagesMap[$pageId] = [
                 'page' => $page,
@@ -131,9 +127,7 @@ class PageRepository extends ServiceEntityRepository
             ->select('page')
             ->leftJoin('page.translations', 'translation', 'WITH', 'translation.locale = :localeParam')
             ->leftJoin('page.translations', 'fallbackTranslation', 'WITH', 'fallbackTranslation.locale = :fallbackLocale')
-            ->leftJoin('page.defaultTranslation', 'defaultTranslation')
             ->leftJoin('page.parent', 'parent')
-            ->leftJoin('parent.defaultTranslation', 'parentDefaultTranslation')
             ->andWhere('page.archived = false')
             ->setParameter('localeParam', $locale)
             ->setParameter('fallbackLocale', $this->siteContext->getReferenceLocale());
@@ -141,8 +135,8 @@ class PageRepository extends ServiceEntityRepository
         if ($filter->hasSearchTerm() === true) {
             $builder
                 ->andWhere($builder->expr()->orX(
-                    $builder->expr()->like('LOWER(CASE WHEN translation.id IS NOT NULL THEN translation.title WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.title ELSE defaultTranslation.title END)', ':searchTerm'),
-                    $builder->expr()->like('LOWER(CASE WHEN translation.id IS NOT NULL THEN translation.slug WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.slug ELSE defaultTranslation.slug END)', ':searchTerm'),
+                    $builder->expr()->like('LOWER(CASE WHEN translation.id IS NOT NULL THEN translation.title ELSE fallbackTranslation.title END)', ':searchTerm'),
+                    $builder->expr()->like('LOWER(CASE WHEN translation.id IS NOT NULL THEN translation.slug ELSE fallbackTranslation.slug END)', ':searchTerm'),
                 ))
                 ->setParameter('searchTerm', '%' . strtolower($filter->searchTerm) . '%');
         }
@@ -154,8 +148,7 @@ class PageRepository extends ServiceEntityRepository
                 ->addOrderBy(
                     'CASE
                         WHEN translation.id IS NOT NULL THEN translation.updatedAt
-                        WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.updatedAt
-                        ELSE defaultTranslation.updatedAt
+                        ELSE fallbackTranslation.updatedAt
                      END',
                     $filter->getOrderDir()
                 );
@@ -164,8 +157,7 @@ class PageRepository extends ServiceEntityRepository
                 ->addOrderBy(
                     'CASE
                         WHEN translation.id IS NOT NULL THEN translation.updatedAt
-                        WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.updatedAt
-                        ELSE defaultTranslation.updatedAt
+                        ELSE fallbackTranslation.updatedAt
                      END',
                     'desc'
                 );
@@ -181,7 +173,7 @@ class PageRepository extends ServiceEntityRepository
             $title = $filter->col('title');
             $builder
                 ->andWhere(
-                    $builder->expr()->like('LOWER(CASE WHEN translation.id IS NOT NULL THEN translation.title WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.title ELSE defaultTranslation.title END)', ':colTitle')
+                    $builder->expr()->like('LOWER(CASE WHEN translation.id IS NOT NULL THEN translation.title ELSE fallbackTranslation.title END)', ':colTitle')
                 )
                 ->setParameter('colTitle', sprintf('%%%s%%', strtolower($title)));
         }
@@ -193,8 +185,7 @@ class PageRepository extends ServiceEntityRepository
                 ->andWhere(
                     'CASE
                         WHEN translation.id IS NOT NULL THEN translation.status
-                        WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.status
-                        ELSE defaultTranslation.status
+                        ELSE fallbackTranslation.status
                      END = :colStatus'
                 )
                 ->setParameter('colStatus', $status);
@@ -225,8 +216,7 @@ class PageRepository extends ServiceEntityRepository
             $updatedAtCase =
                 'CASE
                     WHEN translation.id IS NOT NULL THEN translation.updatedAt
-                    WHEN :localeParam != :fallbackLocale AND fallbackTranslation.id IS NOT NULL THEN fallbackTranslation.updatedAt
-                    ELSE defaultTranslation.updatedAt
+                    ELSE fallbackTranslation.updatedAt
                  END';
 
             if ($updatedAtRange === '90+') {
@@ -296,8 +286,12 @@ class PageRepository extends ServiceEntityRepository
     public function getPath(PageInterface $page, string $locale): string
     {
         $pages = $this->getPathHydrated($page);
-        $path = array_map(fn (PageInterface $page)
-            => $page->getTranslationByLocaleOrDefault($locale)->getTitle(), $pages);
+        $resolver = $this->referenceTranslationResolver;
+        $path = array_map(static function (PageInterface $page) use ($locale, $resolver): string {
+            /** @var ContentTranslationInterface $trans */
+            $trans = $resolver->resolveByLocale($page, $locale);
+            return $trans->getTitle();
+        }, $pages);
 
         return implode(' / ', $path);
     }

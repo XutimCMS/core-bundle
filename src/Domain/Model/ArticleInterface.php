@@ -10,7 +10,10 @@ use Symfony\Component\Uid\Uuid;
 use Xutim\CoreBundle\Config\Layout\Layout;
 use Xutim\MediaBundle\Domain\Model\MediaInterface;
 
-interface ArticleInterface extends TranslationLocaleAwareInterface
+/**
+ * @extends TranslatableInterface<ContentTranslationInterface>
+ */
+interface ArticleInterface extends TranslationLocaleAwareInterface, TranslatableInterface
 {
     /** @param list<string> $translationLocales */
     public function change(array $translationLocales): void;
@@ -24,10 +27,6 @@ interface ArticleInterface extends TranslationLocaleAwareInterface
      */
     public function getTranslations(): Collection;
 
-    public function getDefaultTranslation(): ContentTranslationInterface;
-
-    public function setDefaultTranslation(ContentTranslationInterface $trans): void;
-
     /**
      * @return array{total: int, translated: int}
      */
@@ -38,11 +37,6 @@ interface ArticleInterface extends TranslationLocaleAwareInterface
     public function getLayout(): ?string;
 
     public function changeLayout(?Layout $layout): void;
-
-    /**
-     * @return ContentTranslationInterface
-     */
-    public function getTranslationByLocaleOrDefault(string $locale);
 
     /**
      * @return ?ContentTranslationInterface
@@ -106,5 +100,5 @@ interface ArticleInterface extends TranslationLocaleAwareInterface
     /**
      * @return ContentTranslationInterface
     */
-    public function getTranslationByLocaleOrAny(string $locale);
+    public function getTranslationByLocaleOrAny(string $locale, ?string $altLocale = null);
 }
