@@ -45,36 +45,23 @@ export default class extends Controller {
         fetchAllFilesUrl: String,
         fetchFileUrl: String,
         fetchAnchorSnippetsUrl: String,
+        xutimLayouts: Array,
+        xutimLayoutPreviewUrl: String,
         referenceDiffUrl: String,
         referenceHasChanged: Boolean,
     };
 
     connect() {
-        this.isOn = localStorage.getItem('xutim.splitView') === '1';
-        const stored = localStorage.getItem('xutim.splitViewScrollLock');
-        this.scrollLocked = stored === null || stored === '1';
+        const scrollLockRaw = this.#readPref('scroll_lock', 'xutim.splitViewScrollLock');
+        this.scrollLocked = scrollLockRaw === null || scrollLockRaw === '1';
 
-        if (this.isOn) {
+        const desiredRefLocale = this.#readPref('ref', 'xutim.splitViewReference');
+        if (desiredRefLocale) this.#selectRefLocale(desiredRefLocale);
+
+        if (this.#readPref('split', 'xutim.splitView') === '1') {
             this.enable();
-            this.localeSelectTarget.hidden = false;
-            this.localeSelectClipboardTarget.hidden = false;
-            if (this.hasScrollLockBtnTarget)
-                this.scrollLockBtnTarget.hidden = false;
         } else {
-            this.leftTarget.classList.remove('col-lg-6');
-            this.rightTarget.classList.add('d-none');
-
-            if (this.hasIconOnTarget)
-                this.iconOnTarget.classList.remove('d-none');
-            if (this.hasIconOffTarget)
-                this.iconOffTarget.classList.add('d-none');
-
-            this.isOn = false;
-
-            this.localeSelectTarget.hidden = true;
-            this.localeSelectClipboardTarget.hidden = true;
-            if (this.hasScrollLockBtnTarget)
-                this.scrollLockBtnTarget.hidden = true;
+            this.disable();
         }
 
         this.#updateScrollLockButton();
@@ -83,22 +70,13 @@ export default class extends Controller {
     async toggle() {
         if (this.isOn) {
             this.disable();
-            this.localeSelectTarget.hidden = true;
-            this.localeSelectClipboardTarget.hidden = true;
-            if (this.hasScrollLockBtnTarget)
-                this.scrollLockBtnTarget.hidden = true;
         } else {
             await this.enable();
-            this.localeSelectTarget.hidden = false;
-            this.localeSelectClipboardTarget.hidden = false;
-            if (this.hasScrollLockBtnTarget)
-                this.scrollLockBtnTarget.hidden = false;
         }
     }
 
     async enable() {
         this.isOn = true;
-        localStorage.setItem('xutim.splitView', '1');
 
         this.leftTarget.classList.add('col-lg-6');
         this.rightTarget.classList.remove('d-none');
@@ -110,18 +88,30 @@ export default class extends Controller {
         this.iconOnTarget.classList.add('d-none');
         this.iconOffTarget.classList.remove('d-none');
 
+        this.localeSelectTarget.hidden = false;
+        this.localeSelectClipboardTarget.hidden = false;
+        if (this.hasScrollLockBtnTarget)
+            this.scrollLockBtnTarget.hidden = false;
+
         this.#applyScrollLock();
+        this.#persistState();
     }
 
     disable() {
         this.isOn = false;
-        localStorage.setItem('xutim.splitView', '0');
 
         this.leftTarget.classList.remove('col-lg-6');
         this.rightTarget.classList.add('d-none');
 
         this.iconOnTarget.classList.remove('d-none');
         this.iconOffTarget.classList.add('d-none');
+
+        this.localeSelectTarget.hidden = true;
+        this.localeSelectClipboardTarget.hidden = true;
+        if (this.hasScrollLockBtnTarget)
+            this.scrollLockBtnTarget.hidden = true;
+
+        this.#persistState();
     }
 
     async loadReference() {
@@ -139,7 +129,57 @@ export default class extends Controller {
 
         if (this.refEditor?.destroy) await this.refEditor.destroy();
 
-        const tools = buildEditorTools({
+        const tools = this.buildTools();
+
+        this.refEditor = new EditorJS({
+            holder: this.referenceTarget,
+            readOnly: true,
+            data,
+            tools: tools,
+            onReady: () => this.decorateBlocksForCopy(),
+        });
+
+        this.#persistState();
+    }
+
+    /** URL param first, localStorage fallback for a fresh URL. */
+    #readPref(urlKey, storageKey) {
+        const fromUrl = new URLSearchParams(window.location.search).get(urlKey);
+        return fromUrl ?? localStorage.getItem(storageKey);
+    }
+
+    #selectRefLocale(locale) {
+        if (!this.hasLocaleSelectTarget) return;
+        const match = this.localeSelectTarget.querySelector(
+            `option[data-locale="${CSS.escape(locale)}"]`,
+        );
+        if (match) this.localeSelectTarget.value = match.value;
+    }
+
+    #currentRefLocale() {
+        return this.localeSelectTarget?.selectedOptions?.[0]?.dataset.locale ?? null;
+    }
+
+    #persistState() {
+        const url = new URL(window.location.href);
+        const write = (urlKey, storageKey, value) => {
+            if (value === null) {
+                url.searchParams.delete(urlKey);
+                localStorage.removeItem(storageKey);
+            } else {
+                url.searchParams.set(urlKey, value);
+                localStorage.setItem(storageKey, value);
+            }
+        };
+        write('split', 'xutim.splitView', this.isOn ? '1' : '0');
+        write('scroll_lock', 'xutim.splitViewScrollLock', this.scrollLocked ? '1' : '0');
+        write('ref', 'xutim.splitViewReference', this.#currentRefLocale());
+        history.replaceState({}, '', url);
+    }
+
+    /** Extension hook: override to inject downstream tools/tunes. */
+    buildTools(overrides = {}) {
+        return buildEditorTools({
             pageIdsUrl: this.pageIdsUrlValue,
             articleIdsUrl: this.articleIdsUrlValue,
             tagIdsUrl: this.tagIdsUrlValue,
@@ -150,19 +190,15 @@ export default class extends Controller {
             fetchAnchorSnippetsUrl: this.fetchAnchorSnippetsUrlValue,
             blockCodes: this.blockCodesValue,
             tags: this.tagsValue,
-        });
-
-        this.refEditor = new EditorJS({
-            holder: this.referenceTarget,
-            readOnly: true,
-            data,
-            tools: tools,
-            onReady: () => this.decorateBlocksForCopy(),
+            xutimLayouts: this.xutimLayoutsValue,
+            xutimLayoutPreviewUrl: this.#appendEditMode(this.xutimLayoutPreviewUrlValue),
+            ...overrides,
         });
     }
 
-    toolsConfig() {
-        return window.XutimEditorTools || {};
+    #appendEditMode(url) {
+        if (!url) return url;
+        return url + (url.includes('?') ? '&' : '?') + 'edit=1';
     }
 
     async decorateBlocksForCopy() {
@@ -196,10 +232,7 @@ export default class extends Controller {
 
                 Object.assign(btn.style, {
                     position: 'absolute',
-                    left: '-1rem',
-                    top: '0rem',
-                    fontSize: '12px',
-                    marginLeft: '-0.5rem',
+                    left: '-1.5rem',
                     top: '50%',
                     transform: 'translateY(-50%)',
                 });
@@ -227,7 +260,6 @@ export default class extends Controller {
         const src = this.refData?.blocks ?? [];
         if (!src.length) return;
 
-        // Build Editor.js ARRAY payload: [{ id, tool, data, tunes, time }]
         const payload = src.map((b) => ({
             id: b.id ?? this.#rid(10),
             tool: b.type,
@@ -237,7 +269,6 @@ export default class extends Controller {
         }));
         const payloadStr = JSON.stringify(payload);
 
-        // Fallback HTML/text (sanitized) from the rendered readonly area
         const htmlText = this.#buildHtmlTextFromNode(this.referenceTarget);
 
         await this.#writeClipboardViaCopyEvent({
@@ -375,6 +406,8 @@ export default class extends Controller {
         if (!this.hasDiffContainerTarget || !this.hasReferenceContainerTarget)
             return;
 
+        if (!this.isOn) await this.enable();
+
         const res = await fetch(this.referenceDiffUrlValue);
         if (!res.ok) return;
 
@@ -451,12 +484,9 @@ export default class extends Controller {
 
     toggleScrollLock() {
         this.scrollLocked = !this.scrollLocked;
-        localStorage.setItem(
-            'xutim.splitViewScrollLock',
-            this.scrollLocked ? '1' : '0',
-        );
         this.#applyScrollLock();
         this.#updateScrollLockButton();
+        this.#persistState();
     }
 
     #applyScrollLock() {
