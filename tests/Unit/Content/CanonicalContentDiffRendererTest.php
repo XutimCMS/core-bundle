@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Xutim\CoreBundle\Tests\Unit\Content;
 
 use PHPUnit\Framework\TestCase;
+use Xutim\CoreBundle\Config\Layout\Block\Option\PageBlockItemOption;
+use Xutim\CoreBundle\Config\Layout\Block\Option\TextBlockItemOption;
+use Xutim\CoreBundle\Config\Layout\Definition\LayoutDefinition;
+use Xutim\CoreBundle\Config\Layout\Definition\LayoutDefinitionRegistry;
 use Xutim\CoreBundle\Content\Adapter\CanonicalEditorJsAdapter;
 use Xutim\CoreBundle\Content\CanonicalContentExtractor;
 use Xutim\CoreBundle\Content\Diff\CanonicalContentDiffRenderer;
@@ -27,6 +31,7 @@ final class CanonicalContentDiffRendererTest extends TestCase
         $this->renderer = new CanonicalContentDiffRenderer(
             $extractor,
             new InlineDiffRenderer(),
+            new LayoutDefinitionRegistry([]),
         );
     }
 
@@ -291,5 +296,161 @@ final class CanonicalContentDiffRendererTest extends TestCase
         self::assertSame('fold-1', $legacyBlocks[0]['id']);
         self::assertSame('p1', $legacyBlocks[1]['id']);
         self::assertSame('fold-1_end', $legacyBlocks[2]['id']);
+    }
+
+    public function test_added_xutim_layout_block_has_layout_row_shape(): void
+    {
+        $old = $this->transformer->transform(['blocks' => []]);
+        $new = $this->transformer->transform([
+            'blocks' => [
+                [
+                    'id' => 'l1',
+                    'type' => 'xutimLayout',
+                    'data' => [
+                        'layoutCode' => 'two_columns',
+                        'values' => ['title' => 'Hello', 'pageId' => '42'],
+                    ],
+                    'tunes' => [],
+                ],
+            ],
+        ]);
+
+        $rows = $this->renderer->diffDocuments($old, $new);
+
+        self::assertSame('added', $rows[0]['op']);
+        self::assertSame('xutim_layout', $rows[0]['kind']);
+        self::assertSame('two_columns', $rows[0]['layout_code']);
+        self::assertFalse($rows[0]['layout_code_changed']);
+        self::assertContains('title', $rows[0]['fields']);
+        self::assertContains('pageId', $rows[0]['fields']);
+        self::assertArrayHasKey('title', $rows[0]['parts']);
+        self::assertArrayHasKey('title', $rows[0]['meta']);
+    }
+
+    public function test_layout_string_ref_field_with_definition_is_exposed_as_ref(): void
+    {
+        $renderer = $this->rendererWithLayoutDefinition();
+        $old = $this->transformer->transform([
+            'blocks' => [
+                [
+                    'id' => 'l1',
+                    'type' => 'xutimLayout',
+                    'data' => [
+                        'layoutCode' => 'two_columns',
+                        'values' => ['title' => 'Hello', 'page1' => '784305be-175d-4015-bf70-ce60ef40d34b'],
+                    ],
+                    'tunes' => [],
+                ],
+            ],
+        ]);
+        $new = $this->transformer->transform([
+            'blocks' => [
+                [
+                    'id' => 'l1',
+                    'type' => 'xutimLayout',
+                    'data' => [
+                        'layoutCode' => 'two_columns',
+                        'values' => ['title' => 'Hello', 'page1' => '59603a51-c534-46ac-84c3-25d28484b483'],
+                    ],
+                    'tunes' => [],
+                ],
+            ],
+        ]);
+
+        $rows = $renderer->diffDocuments($old, $new);
+
+        self::assertSame('ref', $rows[0]['parts']['page1']['kind']);
+        self::assertSame('changed', $rows[0]['meta']['page1']['status']);
+        self::assertSame('784305be-175d-4015-bf70-ce60ef40d34b', $rows[0]['meta']['page1']['old_raw']);
+        self::assertSame('59603a51-c534-46ac-84c3-25d28484b483', $rows[0]['meta']['page1']['new_raw']);
+        self::assertFalse($rows[0]['meta']['page1']['translatable']);
+        self::assertSame('text', $rows[0]['parts']['title']['kind']);
+        self::assertTrue($rows[0]['meta']['title']['translatable']);
+        self::assertSame('modified', $rows[0]['op']);
+    }
+
+    public function test_removed_xutim_layout_block_has_layout_row_shape(): void
+    {
+        $old = $this->transformer->transform([
+            'blocks' => [
+                [
+                    'id' => 'l1',
+                    'type' => 'xutimLayout',
+                    'data' => [
+                        'layoutCode' => 'two_columns',
+                        'values' => ['title' => 'Hello'],
+                    ],
+                    'tunes' => [],
+                ],
+            ],
+        ]);
+        $new = $this->transformer->transform(['blocks' => []]);
+
+        $rows = $this->renderer->diffDocuments($old, $new);
+
+        self::assertSame('removed', $rows[0]['op']);
+        self::assertSame('xutim_layout', $rows[0]['kind']);
+        self::assertSame('two_columns', $rows[0]['layout_code']);
+        self::assertFalse($rows[0]['layout_code_changed']);
+        self::assertContains('title', $rows[0]['fields']);
+    }
+
+    private function rendererWithLayoutDefinition(): CanonicalContentDiffRenderer
+    {
+        $definition = new class implements LayoutDefinition {
+            public function getCode(): string
+            {
+                return 'two_columns';
+            }
+
+            public function getName(): string
+            {
+                return 'Two columns';
+            }
+
+            public function getFields(): array
+            {
+                return [
+                    'title' => new TextBlockItemOption(),
+                    'page1' => new PageBlockItemOption(),
+                ];
+            }
+
+            public function getFieldDescriptions(): array
+            {
+                return [];
+            }
+
+            public function getTemplate(): string
+            {
+                return 'test.html.twig';
+            }
+
+            public function getFormBodyTemplate(): ?string
+            {
+                return null;
+            }
+
+            public function getDescription(): string
+            {
+                return '';
+            }
+
+            public function getCategory(): string
+            {
+                return '';
+            }
+
+            public function getPreviewImage(): string
+            {
+                return '';
+            }
+        };
+
+        return new CanonicalContentDiffRenderer(
+            new CanonicalContentExtractor($this->adapter),
+            new InlineDiffRenderer(),
+            new LayoutDefinitionRegistry([$definition]),
+        );
     }
 }
