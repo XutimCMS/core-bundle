@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Xutim\CoreBundle\Service;
 
-use Xutim\CoreBundle\Content\CanonicalContentExtractor;
-use Xutim\CoreBundle\Content\Transform\EditorJsToCanonicalDocumentTransformer;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Uid\UuidV4;
 use Twig\Environment;
+use Xutim\CoreBundle\Content\CanonicalContentExtractor;
+use Xutim\CoreBundle\Content\Transform\EditorJsToCanonicalDocumentTransformer;
 use Xutim\MediaBundle\Repository\MediaRepositoryInterface;
 
 readonly class ContentFragmentsConverter
@@ -123,9 +123,13 @@ readonly class ContentFragmentsConverter
         $copyrights = [];
         foreach ($this->extractor->flattenBlocks($document->blocks) as $block) {
             if ($block->kind === 'image') {
-                $media = $this->mediaRepo->findById(new UuidV4((string) ($block->attrs['fileId'] ?? '')));
+                $fileId = $block->attrs['fileId'] ?? null;
+                if (!is_string($fileId) || $fileId === '') {
+                    continue;
+                }
+                $media = $this->mediaRepo->findById(new UuidV4($fileId));
                 if ($media === null) {
-                    throw new NotFoundHttpException('Media with an id ' . ($block->attrs['fileId'] ?? '') . ' was not found');
+                    throw new NotFoundHttpException('Media with an id ' . $fileId . ' was not found');
                 }
                 if ($media->copyright() !== null && $media->copyright() !== '') {
                     $copyrights[$media->id()->toRfc4122()] = $media->copyright();

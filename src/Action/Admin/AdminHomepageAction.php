@@ -7,7 +7,7 @@ namespace Xutim\CoreBundle\Action\Admin;
 use Pagerfanta\Adapter\ArrayAdapter;
 use Pagerfanta\Pagerfanta;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Attribute\TaggedIterator;
+use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapQueryParameter;
 use Xutim\CoreBundle\Context\SiteContext;
@@ -29,14 +29,16 @@ class AdminHomepageAction extends AbstractController
         private readonly ArticleRepository $articleRepository,
         private readonly SiteContext $siteContext,
         private readonly NotificationRepository $notificationRepository,
-        #[TaggedIterator('xutim.translation_stat_provider')]
+        #[AutowireIterator('xutim.translation_stat_provider')]
         private readonly iterable $statProviders,
     ) {
     }
 
     public function __invoke(
-        #[MapQueryParameter] int $untranslatedPage = 1,
-        #[MapQueryParameter] int $changedPage = 1,
+        #[MapQueryParameter]
+        int $untranslatedPage = 1,
+        #[MapQueryParameter]
+        int $changedPage = 1,
     ): Response {
         $latestArticles = $this->articleRepository->findBy([], ['createdAt' => 'desc'], 10);
 
@@ -56,10 +58,10 @@ class AdminHomepageAction extends AbstractController
         int $changedPage,
     ): Response {
         $userLocales = $this->getUser()->getTranslationLocales();
-        $userLocales = array_filter(
+        $userLocales = array_values(array_filter(
             $userLocales,
             fn (string $locale) => in_array($locale, $this->siteContext->getAllLocales(), true)
-        );
+        ));
 
         $referenceLocale = $this->siteContext->getReferenceLocale();
 
